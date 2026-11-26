@@ -816,6 +816,11 @@ pub enum PartColor {
     Guard,
     Wood,
     Steel,
+    /// N11: the campfire's stone ring (grey, unlit stays visible).
+    Stone,
+    /// N11: the flame/ember boxes (emissive orange — the fs_mesh light
+    /// answer does not apply; the fire IS the light).
+    Flame,
 }
 
 impl PartColor {
@@ -828,6 +833,8 @@ impl PartColor {
             PartColor::Guard => torso_material("guard"),
             PartColor::Wood => WOOD,
             PartColor::Steel => STEEL,
+            PartColor::Stone => [0.42, 0.40, 0.38],
+            PartColor::Flame => [0.95, 0.55, 0.18],
         }
     }
 }
@@ -1096,7 +1103,7 @@ pub fn impostor_pose(brain: &NpcBrain) -> RigPose {
 /// One rigged box instance: position, yaw, PER-AXIS scale (parts are
 /// stretched boxes, not uniform), bucketed by color.
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct BoxInstance {
     pub pos: [f32; 3],
     pub yaw: f32,

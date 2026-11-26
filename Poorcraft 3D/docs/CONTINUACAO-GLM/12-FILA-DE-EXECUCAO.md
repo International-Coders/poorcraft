@@ -259,6 +259,39 @@ lever do gate). OBSERVE PASS (5 capturas, 207 frames, p50 2.66 s).
 
 Jornada completa em 20 minutos, save/reload e playtest desconhecido.
 
+## N11 FECHADO — o fogo, o frio e a volta (loop 488, 2026-11-26)
+
+A rota capstone `route_first_night` fecha VERDE com MUTAÇÃO PROVADA e 5
+PNGs inspecionados. Os três defeitos de causa-raiz corrigidos (não
+sintoma): (1) o verbo E nunca enchia o fogo em jogo real — o braço de
+colocação vivia só em `OpenInteract`, que NENHUM input emite; `TryTalk`
+agora delega ao `CampfireInteract` quando nenhum zona E mais forte
+(plaza, forge, NPC, água) reclama o press — a MESMA prioridade do
+`OpenInteract`, um só caminho de verdade; (2) o fogo colocado nascia
+FRIO (fuel 0) sob o toast "CAMPFIRE LIT" — a colocação É o primeiro
+feed (uma lenha entra na pilha na hora; o toast diz a verdade); (3)
+place/feed não sincronizavam o stock do HUD (o PACK mentia depois do
+verbo) — ambos os caminhos passam no `sync_stock_lines_of`. A lei do
+abrigo ficou HONESTA na prova: `SHELTERED` exige cobertura+paredes
+mesmo junto ao fogo — a rota testemunha o eixo fogo pela FÍSICA
+(warmth 1.00 regenerando à meia-noite enquanto a linha ainda nomeia
+"NO ROOF OVERHEAD" da planície), não por veredito laranja. O
+away-poll latched o dreno em 0.90 (25 ticks × DRAIN 0.004 na noite
+1000) — robusto a tick-rate; o fogo sem cuidadores MORREU na ausência
+(a lei de risco documentada) e o beat de retorno o REACENDE com 4
+lenhas antes do save — o reload devolve fogo VIVO (glow 0.90) +
+posição + linha sincronizada + wood contábil (8 cavados = 1 colocação
++ 2 feeds + 4 reavivamentos + 1 carregado). MUTAÇÃO PROVADA:
+`PC3D_MUTATE_COLD_OFF=1` corta o dreno da lei do frio →
+`warmth_drained_away false` (0.00 na noite 0) → FAIL exato nessa
+célula, controle PASS; unit `p3dn11_cold_gate_is_load_bearing_mutation_check`
+fixa o lever na suíte. Suíte: pc3d_world 12 testes p3dn11 verdes;
+render lib 281 verdes. OBSERVE PASS (5 capturas, 680 frames, p50
+2.03 s). PNGs inspecionados: fogo aceso de dia (HUD honesto WOOD x7 +
+"NO ROOF OVERHEAD"), pilha alimentada (x6), lareira à meia-noite
+(pool quente no chão), planície fria e escura (barra de warmth menor),
+fogo reavivado pós-reload (x1, glow 0.90).
+
 ## Marco BETA — bateria completa VERDE (loop 487, 2026-11-25)
 
 A bateria `make p3d-beta` (38 estágios) fecha ALL STAGES PASS com 442 PNGs

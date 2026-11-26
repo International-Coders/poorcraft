@@ -6411,3 +6411,19 @@ The simulation-only roadmap was declared complete; the visual reset
 - Evidence: assetgen 1300 OK, guardrails green, suites exit 0.
 - Deferred: the new families not yet instanced in the wild (streamer
   wiring follows); region-center slope metric (macro relief).
+
+## Loop 488 — N11 closed: the fire verb reaches live play, the cold law has teeth
+- THE FIRE VERB WAS UNREACHABLE: E emitted TryTalk; the place arm lived
+  only in OpenInteract (emitted by nothing). TryTalk now delegates to
+  CampfireInteract under the same zone-priority law — E on open ground
+  with wood places the campfire at the crosshair, exactly as the HUD
+  prompt promises.
+- A PLACED FIRE WAS BORN COLD under a "CAMPFIRE LIT" toast: placement
+  IS the first feed now (one log enters the pile at placement).
+- HUD stock now syncs on place/feed (the PACK lied after the verb).
+- route_first_night rebuilt on tick-law arithmetic (aim-on-column,
+  8-dig ledger, 25-tick drain poll, midnight re-pin, unattended fire
+  gutters + 4-log revival before save). OBSERVE PASS, 5 PNGs
+  inspected; PC3D_MUTATE_COLD_OFF=1 -> FAIL at warmth_drained_away
+  only (control PASS) — the cold gate is load-bearing.
+- pc3d_world: mutation lever + load-bearing unit check; suites 835/0.

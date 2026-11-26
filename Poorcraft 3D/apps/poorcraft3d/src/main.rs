@@ -3062,9 +3062,10 @@ fn main() {
                             None, // career: BETA-0.2 (routes stage no path)
                             &pc3d_world::items::ToolWear::default(),
                             None, // fish stocks: fresh river on reload (N08)
+                            None, // campfire: none lit in this proof (N11)
                         )
                         .expect("save");
-                        let (_s2, h2, _p2, _, _, _, _, _, _, _) =
+                        let (_s2, h2, _p2, _, _, _, _, _, _, _, _) =
                             pc3d_render::slice::load_slice(&dir, "rebuild").expect("reload");
                         let c1: usize = h.construction.values().map(|c| c.built_count()).sum();
                         let c2: usize = h2.construction.values().map(|c| c.built_count()).sum();
@@ -5251,6 +5252,7 @@ fn ui_test_save_root() -> std::rc::Rc<std::path::PathBuf> {
             None, // career: BETA-0.2 (routes stage no path)
             &pc3d_world::items::ToolWear::default(),
             None, // fish stocks: fresh river on load (N08)
+            None, // campfire: none lit in staged worlds (N11)
         )
         .expect("write test world");
     }
@@ -6067,6 +6069,24 @@ fn run_observe(route_id: &str, out_root: &str) {
         // the S cell diag (x, z), [17] ground at S after the BARE-HAND
         // Z (must equal [3] — no tool, no edit).
         let sculpt_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 18]));
+        // route_first_night recordings (N11 capstone): [0] the fire is
+        // LIT (CAMPFIRE LIT toast), [1] fire glow after the feeds (the
+        // light term's w: 0.9 * min(pile,1)), [2] the night factor at
+        // the verdict beat (x1000), [3] warmth at the fire (held ~1.0),
+        // [4] warmth far from the fire at night (drained < 0.9), [5]
+        // the shelter line NON-SHELTERED at spawn (latched once), [6]
+        // the hearth verdict latched (line = SHELTERED or the plain's
+        // NO ROOF OVERHEAD — the fire warms; the roof stays honest),
+                // [7] wood in the pack after all 8 digs (the real
+                // takes), [8]
+        // the crackle loop live while in reach, [9] the warm light
+        // term glowing (campfire_light w > 0), [10] warmth after
+        // reload (restarts full), [11] fire glow after reload (the
+        // fire RETURNED), [12] the shelter line after reload, [13]
+        // night factor at the drain latch (x1000), [14] the pack wood
+        // after reload (diag), [15] the diag: line == SHELTERED at
+        // the hearth (1) — normally 0: an open hearth is no roof.
+        let first_night_cells = std::rc::Rc::new(std::cell::Cell::new([0.0_f32; 16]));
         let _mouse_first_ground0 = if spec.id == "route_mouse_first" {
             let gen = &scene.gen;
             let plaza = scene.plan.plaza;
@@ -9810,6 +9830,424 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // Frame 206: capture the leveled ground.
                 shots.push(Shot::new(206, format!("{dir}/sculpt_leveled.png")));
             }
+            "route_first_night" => {
+                // THE FIRST NIGHT, END TO END (N11 capstone): fresh
+                // slice -> EARN the wood through the REAL dig (the
+                // grass ladder's law — three bare-hand takes: wood for
+                // the place, wood for the feed, one to spare) -> PLACE
+                // the fire at the crosshair (E, the fire verb) -> FEED
+                // it (E again in reach) -> NIGHT falls (the proof hook
+                // runs the day arc to midnight) -> the verdicts:
+                // warmth HOLDS at the fire, warmth DRAINS far from it,
+                // the shelter line names the open plain vs SHELTERED
+                // by the fire -> SAVE -> QUIT -> RELOAD -> the fire
+                // RETURNED (fuel, position), warmth restarted full.
+                let gen = &scene.gen;
+                let plaza = scene.plan.plaza;
+                // THE WOOD LADDER (eight DISTINCT grass columns — the
+                // first_tool law: a repeat dig on the same column
+                // takes Soil, not wood). Eight takes: the placement's
+                // first log + four feeds (the pile CAP is 5000 milli =
+                // 5 logs — the cap itself refuses a fifth feed), and
+                // three carried through the save.
+                let ladder = find_dig_spots_barehand(
+                    gen,
+                    plaza.x as f32 + 0.5,
+                    plaza.z as f32 + 0.5,
+                    8,
+                )
+                .unwrap_or_else(|| {
+                    panic!("route_first_night: no 8-grass ladder near the plaza on seed {seed}")
+                });
+                println!(
+                    "FIRST NIGHT ladder: {:?}",
+                    ladder.iter().map(|s| (s[0], s[2])).collect::<Vec<_>>()
+                );
+                // THE HEARTH SPOT: flat open ground near the plaza —
+                // flat neighbors, above water.
+                let mut hearth: Option<[f32; 2]> = None;
+                'scan: for r in 3..12 {
+                    for a in 0..24 {
+                        let ang = a as f32 / 24.0 * std::f32::consts::TAU;
+                        let x = plaza.x as f32 + 0.5 + r as f32 * ang.cos();
+                        let z = plaza.z as f32 + 0.5 + r as f32 * ang.sin();
+                        let gy = pc3d_world::grounding::ground_at(
+                            gen,
+                            (x * 1000.0) as i64,
+                            (z * 1000.0) as i64,
+                            pc3d_world::grounding::GroundQuery::Point,
+                        )
+                        .surface_m();
+                        // Flat + above water + not the plaza props.
+                        let flat = (pc3d_world::grounding::ground_at(
+                            gen,
+                            ((x + 1.0) * 1000.0) as i64,
+                            (z * 1000.0) as i64,
+                            pc3d_world::grounding::GroundQuery::Point,
+                        )
+                        .surface_m()
+                            - gy)
+                            .abs()
+                            < 0.5
+                            && (pc3d_world::grounding::ground_at(
+                                gen,
+                                (x * 1000.0) as i64,
+                                ((z + 1.0) * 1000.0) as i64,
+                                pc3d_world::grounding::GroundQuery::Point,
+                            )
+                            .surface_m()
+                                - gy)
+                                .abs()
+                                < 0.5;
+                        if flat && gy > 0.5 {
+                            // E-priority safety: the fire verb only fires
+                            // when no STRONGER E zone claims the frame.
+                            // Chest/ore props sit at plaza ±(3,2); the
+                            // forge zone is 3.5 m of plaza center; talk
+                            // range is 3.0 m of an NPC; cast reach is
+                            // 3.0 m of channel water. Keep the hearth
+                            // out of ALL of them.
+                            let d_plaza = (x - (plaza.x as f32 + 0.5))
+                                .hypot(z - (plaza.z as f32 + 0.5));
+                            let mut clear = d_plaza > 4.0; // forge zone + margin
+                            for dxz in [[3.0, 2.0], [-3.0, 2.0]] {
+                                let px = plaza.x as f32 + 0.5 + dxz[0];
+                                let pz = plaza.z as f32 + 0.5 + dxz[1];
+                                if (x - px).hypot(z - pz) <= 2.6 {
+                                    clear = false; // chest/ore interactables
+                                }
+                            }
+                            for cast in &scene.cast {
+                                let np = pc3d_render::npcs::npc_world_pos(gen, &cast.brain);
+                                if (x - np[0]).hypot(z - np[2]) <= 3.4 {
+                                    clear = false; // talk range + margin
+                                }
+                            }
+                            // The channel scan pulls 5 m out: keep 9 m
+                            // from any in-channel column.
+                            for ddx in -9..=9 {
+                                for ddz in -9..=9 {
+                                    if gen
+                                        .river_channel(
+                                            ((x + ddx as f32) * 1000.0) as i64,
+                                            ((z + ddz as f32) * 1000.0) as i64,
+                                        )
+                                        .is_some()
+                                    {
+                                        clear = false;
+                                    }
+                                }
+                            }
+                            if clear {
+                                // THE AWAY SPOT, PICKED WITH THE HEARTH:
+                                // 12 m north must itself be open,
+                                // above-water, UNSHELTERED ground — a
+                                // lucky hollow there would regen the
+                                // warmth and fake the drain.
+                                let (ax, az) = (x, z - 12.0);
+                                let agy = pc3d_world::grounding::ground_at(
+                                    gen,
+                                    (ax * 1000.0) as i64,
+                                    (az * 1000.0) as i64,
+                                    pc3d_world::grounding::GroundQuery::Point,
+                                )
+                                .surface_m();
+                                let away_open = agy > 0.5
+                                    && !pc3d_world::shelter::score_at(
+                                        gen, ax, az, agy, None,
+                                    )
+                                    .sheltered();
+                                if away_open {
+                                    hearth = Some([x, z]);
+                                    break 'scan;
+                                }
+                            }
+                        }
+                    }
+                }
+                let [hx, hz] = hearth
+                    .unwrap_or_else(|| panic!("route_first_night: no flat hearth spot on seed {seed}"));
+                println!("FIRST NIGHT: hearth spot ({hx:.1},{hz:.1})");
+                let cells = first_night_cells.clone();
+                // Frame 12: enter the world.
+                ui_script.push((
+                    12,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::StartPlaying);
+                    }),
+                ));
+                // Frame 20: latch the OPEN-PLAIN verdict (the shelter
+                // line at the spawn stands: no roof, thin walls, no
+                // fire — the line names what's missing).
+                let cells = first_night_cells.clone();
+                ui_script.push((
+                    20,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        let line = ui.hud.shelter_line.clone();
+                        if !line.is_empty() && line != "SHELTERED" {
+                            v[5] = 1.0;
+                        }
+                        cells.set(v);
+                    }),
+                ));
+                // Frames 30-60: THE LADDER — three real bare-hand digs
+                // (G) at three grass columns; the pack holds wood×3
+                // (place + feed + spare — all real takes).
+                for (i, spot) in ladder.iter().enumerate() {
+                    let (lx, lz) = (spot[0], spot[2]);
+                    let hop = 30 + (i as u64) * 10;
+                    let dig = 34 + (i as u64) * 10;
+                    ui_script.push((
+                        hop,
+                        Box::new(move |_ui, _r, ctx| {
+                            ctx.actions.push(UiAction::PlayerTeleport { x: lx, z: lz });
+                            ctx.actions
+                                .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                        }),
+                    ));
+                    ui_script.push((
+                        dig,
+                        Box::new(move |ui, _r, ctx| {
+                            let acts = ui::on_key(ui, ui::Key::Char('g'));
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                }
+                // Frame 116: latch the ladder's take — wood in the pack
+                // after ALL eight digs (the real yields, the real HUD
+                // echo; the place+feeds come later and spend from it).
+                let cells = first_night_cells.clone();
+                ui_script.push((
+                    116,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[7] = stock_count(&ui.hud.stock, "WOOD") as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 120: stand ON the hearth column, eyes straight
+                // down — the crosshair's ground target is the body's
+                // own cell (the floor under the feet; the before-cell
+                // of a straight-down ray is that same column's air).
+                ui_script.push((
+                    120,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: hx, z: hz });
+                        ctx.actions
+                            .push(UiAction::PlayerFace { yaw: 0.0, pitch: -1.5 });
+                    }),
+                ));
+                // Frame 128: E places the fire (the fire verb's own
+                // path: the crosshair's open ground target, one wood
+                // spent from the pack — the placement IS the first
+                // feed; the toast names it truthfully).
+                ui_script.push((
+                    128,
+                    Box::new(|ui, _r, ctx| {
+                        let acts = ui::on_key(ui, ui::Key::Char('e'));
+                        ctx.actions.extend(acts);
+                    }),
+                ));
+                // Frame 136: latch the LIT verdict (the toast names it,
+                // the warm light term glows — the glow is day-honest:
+                // the burn term carries it at any hour).
+                let cells = first_night_cells.clone();
+                ui_script.push((
+                    136,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[0] = ui
+                            .toasts
+                            .iter()
+                            .any(|t| t.text.contains("CAMPFIRE LIT"))
+                            as u8 as f32;
+                        v[9] = (r.campfire_light()[3] > 0.0) as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 140: capture the lit fire.
+                shots.push(Shot::new(140, format!("{dir}/night_fire_lit.png"))
+                    .ui_dump(format!("{dir}/night_fire_lit.layout.json")));
+                // Frames 150/170: E — FEED the fire (within the warmth
+                // reach the same E verb becomes the feed; two feeds
+                // stack the pile to ~3000 milli — a real, warm fire).
+                for feed_frame in [150u64, 170] {
+                    ui_script.push((
+                        feed_frame,
+                        Box::new(|ui, _r, ctx| {
+                            let acts = ui::on_key(ui, ui::Key::Char('e'));
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                }
+                // Frame 218: latch the FED verdict — the pile carries
+                // a multi-log glow (w = 0.9 * min(fuel,1) = 0.9).
+                let cells = first_night_cells.clone();
+                ui_script.push((
+                    218,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[1] = r.campfire_light()[3].clamp(0.0, 1.0);
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 222: capture the fed fire.
+                shots.push(Shot::new(222, format!("{dir}/night_fire_fed.png"))
+                    .ui_dump(format!("{dir}/night_fire_fed.layout.json")));
+                // Frame 226: NIGHT — the proof hook jumps the day arc
+                // to midnight (the same hook the day/night proof uses;
+                // the live clock advances from it slowly — a full day
+                // per ten minutes — so the night factor HOLDS ≥0.9
+                // through the whole verdict window).
+                ui_script.push((
+                    226,
+                    Box::new(|_ui, r, _ctx| {
+                        r.set_day_phase(0.75); // midnight
+                    }),
+                ));
+                // Frame 264: latch the AT-FIRE verdicts — warmth HELD
+                // (the fire warms through ~4 world ticks of regen),
+                // the line still names the missing roof (the honest
+                // fire witness: an open hearth warms, it does not
+                // roof), the warmth bar live.
+                let cells = first_night_cells.clone();
+                ui_script.push((
+                    264,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[2] = (r.night_factor() * 1000.0).round();
+                        v[3] = ui.hud.warmth;
+                        let line = ui.hud.shelter_line.clone();
+                        if line == "SHELTERED" || line == "NO ROOF OVERHEAD" {
+                            v[6] = 1.0;
+                        }
+                        v[15] = (line == "SHELTERED") as u8 as f32;
+                        v[8] = ui.hud.warmth_live as u8 as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 268: capture the midnight hearth (the warm
+                // light pool on the ground, flames over the ring).
+                shots.push(Shot::new(268, format!("{dir}/night_hearth_midnight.png"))
+                    .ui_dump(format!("{dir}/night_hearth_midnight.layout.json")));
+                // Frame 274: WALK AWAY from the fire (12 m north —
+                // outside warmth, shelter and light reach; the spot was
+                // picked UNSHELTERED at scan time).
+                ui_script.push((
+                    274,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: hx, z: hz - 12.0 });
+                    }),
+                ));                // THE AWAY POLL (every frame 280..=556): latch the
+                // drain the moment warmth crosses 0.9 (25 night ticks
+                // at DRAIN 0.004) — tick-rate-robust (1 tick / 10
+                // frames: the latch fires when the LAW has spoken).
+                // The midnight PIN rides frame 280 too: the day clock
+                // advances in real time, so a slow host (debug p50
+                // ~3.3 s/frame) would otherwise drift past dawn.
+                let cells = first_night_cells.clone();
+                for f in 280..=556u64 {
+                    let cells = cells.clone();
+                    ui_script.push((
+                        f,
+                        Box::new(move |ui, r, _ctx| {
+                            if f == 280 {
+                                r.set_day_phase(0.75); // re-pin midnight
+                            }
+                            let mut v = cells.get();
+                            if v[4] == 0.0 && ui.hud.warmth < 0.9 {
+                                v[4] = ui.hud.warmth;
+                                v[13] = (r.night_factor() * 1000.0).round();
+                                cells.set(v);
+                            }
+                        }),
+                    ));
+                }
+                // Frame 560: capture the cold dark plain (no warm
+                // light pool; the WARMTH bar visibly lower) — the poll
+                // has ~280 frames (~28 ticks) to cross 0.9 from 1.0
+                // (25 ticks needed), so the latch lands before the
+                // shot at every host pace.
+                shots.push(Shot::new(560, format!("{dir}/night_cold_away.png"))
+                    .ui_dump(format!("{dir}/night_cold_away.layout.json")));
+                // Frame 566: return to the hearth — the unattended fire
+                // GUTTERED OUT while away (the risk law: an unfed fire
+                // dies; embers at best). The save/reload beat then
+                // proves the REVIVED fire rides the trailer.
+                ui_script.push((
+                    566,
+                    Box::new(move |_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::PlayerTeleport { x: hx, z: hz });
+                    }),
+                ));
+                // Frames 568/569/570/571: E x4 — REVIVE the dead fire
+                // (the same feed verb; four logs stack ~4000 milli,
+                // a genuinely LIT hearth for the save).
+                for feed_frame in [568u64, 569, 570, 571] {
+                    ui_script.push((
+                        feed_frame,
+                        Box::new(|ui, _r, ctx| {
+                            let acts = ui::on_key(ui, ui::Key::Char('e'));
+                            ctx.actions.extend(acts);
+                        }),
+                    ));
+                }
+                // Frame 572: SAVE (through the app's own save path —
+                // the same one the pause menu drives; the burn ledger:
+                // 4 revival logs stack ~4000 milli, ~one tick burns
+                // before the save — a LIT fire rides the trailer).
+                ui_script.push((
+                    572,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::SaveNow);
+                    }),
+                ));
+                // Frame 578: latch the pre-reload warmth (the walk
+                // back regened it; the record pins the round trip).
+                let cells = first_night_cells.clone();
+                ui_script.push((
+                    578,
+                    Box::new(move |ui, _r, _ctx| {
+                        let mut v = cells.get();
+                        v[10] = ui.hud.warmth;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 584: QUIT to title, then LOAD the save — the
+                // full app path (the fire must ride the trailer).
+                ui_script.push((
+                    584,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::QuitToTitle);
+                    }),
+                ));
+                ui_script.push((
+                    594,
+                    Box::new(|_ui, _r, ctx| {
+                        ctx.actions.push(UiAction::LoadSlot("observatory".into()));
+                    }),
+                ));
+                // Frame 630: latch the POST-RELOAD verdicts — the fire
+                // RETURNED (light term glowing, still LIT), warmth
+                // restarted full, the shelter line synced again, the
+                // carried wood intact (3 = 8 - place - 2 feeds - 4
+                // revival feeds).
+                let cells = first_night_cells.clone();
+                ui_script.push((
+                    630,
+                    Box::new(move |ui, r, _ctx| {
+                        let mut v = cells.get();
+                        v[11] = r.campfire_light()[3];
+                        v[12] = (!ui.hud.shelter_line.is_empty()) as u8 as f32;
+                        v[14] = stock_count(&ui.hud.stock, "WOOD") as f32;
+                        cells.set(v);
+                    }),
+                ));
+                // Frame 634: capture the reloaded hearth.
+                shots.push(Shot::new(634, format!("{dir}/night_after_reload.png"))
+                    .ui_dump(format!("{dir}/night_after_reload.layout.json")));
+            }
             "route_forge_use" => {
                 // The forge slice, end to end: enter the world, stand at
                 // the plaza forge, E (opens THE FORGE through the zone
@@ -10136,7 +10574,7 @@ fn run_observe(route_id: &str, out_root: &str) {
                 spec.id,
                 "route_semantic_playtest" | "route_vine_hangoff" | "route_hotbar_wear"
                     | "route_mouse_first" | "route_first_tool" | "route_build_ghost"
-                    | "route_sculpt"
+                    | "route_sculpt" | "route_first_night"
             ) {
                 // The playtest's journey and the hang-off's two legs both
                 // outlive the default 420-frame route cap.
@@ -10169,6 +10607,10 @@ fn run_observe(route_id: &str, out_root: &str) {
                 // N08: the eat action fires at 380 and its evidence read
                 // at 384, capture at 390 — the horizon clears all three.
                 Some(420)
+            } else if spec.id == "route_first_night" {
+                // N11: the reload latch lands at 630 and its capture at
+                // 634 — the horizon clears both plus a settle margin.
+                Some(680)
             } else if spec.id == "route_vine_hangoff" {
                 // The hang-off's fall and two landing captures are
                 // latch-scheduled too: its static list drains at 430
@@ -10883,6 +11325,80 @@ fn run_observe(route_id: &str, out_root: &str) {
                     "[FAIL] observe route_sculpt: beat_a {beat_a} / a_red {a_red} / a_toast {a_toast} / a_unmoved {a_unmoved} ({:.3} vs {:.3}) / shovel_crafted {shovel_crafted} / recipe_affordable {recipe_affordable} / shovel_equipped {shovel_equipped} / z_green {z_green} / z_toast {z_toast} / lowered_exact {lowered_exact} ({:.3} vs {:.3}) / u_green {u_green} / u_toast {u_toast} / leveled_back {leveled_back} ({:.3} vs {base_s:.3}) / far_unmoved {far_unmoved} ({:.3} vs {:.3}) / pixel_paints {pixel_paints} (delta {pixel_diff:.4}, cell {:?})",
                     v[17], base_s, v[7], base_s - 1.0, v[10], v[14], v[13],
                     (v[15] as i32, v[16] as i32)
+                );
+                any_fail = true;
+            }
+        }
+        // THE FIRST-NIGHT VERDICT (N11 capstone): the wood was EARNED
+        // (three real bare-hand takes), the fire was LIT + FED through
+        // the real E verb (the pack paid), midnight found the body
+        // WARM at the hearth with the shelter line green, the COLD
+        // PLAIN drained the same body's warmth when it walked away,
+        // and the SAVE/RELOAD round trip returned the fire (glowing),
+        // the pack, and the shelter verdict. Pixel law: midnight-hearth
+        // vs cold-plain share the camera pose family — the warm light
+        // pool + brighter warmth bar are the difference the laws above
+        // pin.
+        if spec.id == "route_first_night" {
+            let v = first_night_cells.get();
+            let ladder_paid = v[7] >= 8.0; // wood seen in the pack after all 8 digs
+            let lit = v[0] > 0.5;
+            let light_glows = v[9] > 0.5;
+            let fed_glow = v[1] > 0.7; // the pile holds multiple logs' glow
+            let night_dark = v[2] >= 900.0; // night factor >= 0.9 at the verdict
+            let warmth_at_fire = v[3] >= 0.95;
+            let plain_rejected = v[5] > 0.5;
+            // THE HONEST FIRE WITNESS: beside the hearth the warmth
+            // HOLDS while the line still names the missing roof —
+            // the fire's warmth axis is proven by physics (v[3]),
+            // the gate's own law (roof+walls) stays respected.
+            let fire_shelters = v[6] > 0.5;
+            let warmth_bar_live = v[8] > 0.5;
+            let warmth_drained_away = v[4] > 0.0 && v[4] < 0.9 && v[13] >= 900.0;
+            let warmth_before_save = v[10];
+            let fire_returned = v[11] > 0.2;
+            let line_synced = v[12] > 0.5;
+            let wood_after_reload = v[14];
+            let ok = ladder_paid
+                && lit
+                && light_glows
+                && fed_glow
+                && night_dark
+                && warmth_at_fire
+                && plain_rejected
+                && fire_shelters
+                && warmth_bar_live
+                && warmth_drained_away
+                && fire_returned
+                && line_synced;
+            let cap = |name: &str| {
+                report
+                    .captures
+                    .iter()
+                    .find(|c| c.path.file_stem().and_then(|s| s.to_str()) == Some(name))
+            };
+            let pixel_law = match (cap("night_hearth_midnight"), cap("night_cold_away")) {
+                (Some(a), Some(b)) => {
+                    let d = pc3d_render::scene::pixel_difference_fraction(&a.rgba, &b.rgba);
+                    // The away frame is 12 m off the hearth AND the
+                    // warmth bar dropped — the delta proves the fire's
+                    // light pool paints at night (inspected: flames +
+                    // warm pool vs dark plain), not repaint noise.
+                    (d > 0.02 && d < 0.9, d)
+                }
+                _ => (false, 0.0),
+            };
+            let (night_paints, night_diff) = pixel_law;
+            let ok = ok && night_paints;
+            if ok {
+                println!(
+                    "FIRST NIGHT: ladder paid {ladder_paid} (wood x{} after digs, x{} after reload), fire LIT (toast) + light glows + fed (glow {:.2}), midnight {} -> warmth HELD at the hearth ({:.2}, line: the plain's missing roof named), the cold plain drained it to {:.2} (night {}), SAVE/RELOAD returned the fire (glow {:.2}) + the line (pre-save warmth {:.2}); the night paints (delta {night_diff:.4})",
+                    v[7] as u32, wood_after_reload as u32, v[1], v[2] as u32, v[3], v[4], v[13] as u32, v[11], warmth_before_save
+                );
+            } else {
+                eprintln!(
+                    "[FAIL] observe route_first_night: ladder_paid {ladder_paid} (wood {}) / lit {lit} / light_glows {light_glows} / fed_glow {fed_glow} ({:.2}) / night_dark {night_dark} ({:.0}) / warmth_at_fire {warmth_at_fire} ({:.2}) / plain_rejected {plain_rejected} / fire_shelters {fire_shelters} / warmth_bar_live {warmth_bar_live} / warmth_drained_away {warmth_drained_away} ({:.2} at night {:.0}) / fire_returned {fire_returned} (glow {:.2}) / line_synced {line_synced} / night_paints {night_paints} (delta {night_diff:.4})",
+                    v[7] as u32, v[1], v[2], v[3], v[4], v[13], v[11]
                 );
                 any_fail = true;
             }

@@ -35,8 +35,10 @@ struct Env {
     params1: vec4f,
     // x glint on, y shadow bias, z detail scale (uv/m), w shadow res (px)
     params2: vec4f,
-    // x = the SCREEN HEIGHT MAP debug flag
+    // x = the SCREEN HEIGHT MAP debug flag, z = night, w = N11 fire glow
     params3: vec4f,
+    // N11 THE FIRE LIGHT: xyz = burning campfire spot, w = radius (0 = none)
+    fire_pos: vec4f,
 };
 
 /// The height-ramp debug output (screen height map): blue low, green
@@ -224,6 +226,14 @@ fn fs_mesh(in: MeshOut) -> @location(0) vec4f {
     // Day/night (params3.z): night pulls the hemisphere + sun down so
     // open ground reads dark without wiping the shadow map.
     light = light * (1.0 - 0.78 * env.params3.z);
+    // N11 THE FIRE LIGHT (warm radial): the burning campfire lifts the
+    // light in its radius — distance falloff, weighted by the glow
+    // strength (params3.w) so proofs with no fire keep the old look.
+    if env.fire_pos.w > 0.0 {
+        let d = distance(in.world.xz, env.fire_pos.xz);
+        let fall = clamp(1.0 - d / env.fire_pos.w, 0.0, 1.0);
+        light = light + 1.1 * fall * fall * env.params3.w;
+    }
     var albedo = in.color;
     // Detail texture (high tier): subtle deterministic surface variation
     // from world-space UVs; globals.tan_aspect.w is the detail flag.

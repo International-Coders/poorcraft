@@ -212,6 +212,13 @@ pub struct SliceHost {
     /// release): THE RELEASE LAW refuses it until the body lands or a
     /// different strand catches — letting go must mean letting go.
     pub released_from: Option<[f32; 2]>,
+    /// N11: the campfire (placed through E at the crosshair with wood
+    /// in the pack), its world XZ, and the body's warmth in [0,1] (the
+    /// cold law drains it at night; shelter or a burning fire within
+    /// reach holds the line).
+    pub campfire: Option<pc3d_world::campfire::Campfire>,
+    pub campfire_xz: [f32; 2],
+    pub warmth: f32,
 }
 
 impl SliceHost {
@@ -1302,6 +1309,8 @@ struct WindowState {
     done: bool,
     /// Blocks in the interactive host's overlay (HUD readout).
     built_count: usize,
+    /// N11: the fire crackle loop is live (start/stop edge detector).
+    fire_loop_live: bool,
 
     // ---- The owner UI (owner_menu runs) ----
     ui: UiState,
@@ -1876,6 +1885,21 @@ impl App {
                         .as_ref()
                         .and_then(|s| s.renderer.nearest_talk_target().map(|(_, d, _)| d));
                     let forge_d = self.forge_zone_distance();
+                    // N11 THE FIRE ZONE: within reach of the placed
+                    // campfire, E feeds it (the reach mirrors the warmth
+                    // radius — you tend what keeps you warm).
+                    let fire_d = self.cfg.slice_host.as_ref().and_then(|slice| {
+                        let fire = slice.campfire.as_ref()?;
+                        let p = slice.player.pos;
+                        Some(
+                            ((p[0] - slice.campfire_xz[0]).powi(2)
+                                + (p[2] - slice.campfire_xz[1]).powi(2))
+                            .sqrt(),
+                        )
+                        .filter(|d| {
+                            *d <= pc3d_world::campfire::WARMTH_RADIUS_M && fire.fuel_milli < pc3d_world::campfire::FUEL_CAP
+                        })
+                    });
                     // N08 THE WATER ZONE: the river's edge fishes (the
                     // authority's gate: water within cast reach). Between
                     // the forge and the NPC in the E priority.
@@ -1894,11 +1918,43 @@ impl App {
                         (None, Some(_)) => true,
                         _ => false,
                     };
-                    if use_forge {
-                        if let Some(slice) = self.cfg.slice_host.as_mut() {
-                            let _ = slice.forge.get_or_insert_with(Default::default);
+                    let use_fire = fire_d.is_some()
+                        && !use_forge
+                        && fire_d.unwrap() <= water_d.unwrap_or(f32::MAX)
+                        && fire_d.unwrap() <= npc.unwrap_or(f32::MAX);
+                    if use_fire {
+                        // FEED THE FIRE: one wood from the pack into the
+                        // pile (the pure authority refuses a full pile).
+                        let ok = self
+                            .cfg
+                            .slice_host
+                            .as_mut()
+                            .map(|slice| {
+                                if slice.inventory.count(pc3d_world::items::ItemId(1)) < 1 {
+                                    return false;
+                                }
+                                let fire =
+                                    slice.campfire.get_or_insert_with(Default::default);
+                                if !fire.add_wood() {
+                                    return false;
+                                }
+                                slice.inventory.remove(pc3d_world::items::ItemId(1), 1);
+                                true
+                            })
+                            .unwrap_or(false);
+                        if let Some(s) = self.state.as_mut() {
+                            s.ui.toast(if ok { "FIRE FED" } else { "NO WOOD IN THE PACK" });
+                            if ok {
+                                if let Some(slice) = self.cfg.slice_host.as_ref() {
+                                    let stock = Self::sync_stock_lines_of(slice);
+                                    s.ui.stock_lines = stock;
+                                }
+                            }
+                            s.ui_dirty = true;
                         }
-                        self.sync_forge_view();
+                        if ok {
+                            self.sfx(pc3d_audio::SoundId::ForgeWhoosh);
+                        }
                     } else if let Some(_wd) = water_d {
                         // E AT THE WATER: cast (one stock → one fish; the
                         // authority refuses dry land and fished-out rivers).
@@ -1966,6 +2022,37 @@ impl App {
                             s.ui.close_panels();
                             s.ui.dialog = Some(line);
                             s.ui_dirty = true;
+                        }
+                        // N11 THE FIRE VERB (live-input law): E on open
+                        // ground with wood and NO stronger zone claiming
+                        // the press places the campfire at the crosshair
+                        // — the same arm OpenInteract runs; E is one key,
+                        // the app resolves what it means here.
+                        let fire_placed = self
+                            .cfg
+                            .slice_host
+                            .as_ref()
+                            .map(|slice| {
+                                slice.campfire.is_none()
+                                    && slice.inventory.count(pc3d_world::items::ItemId(1)) >= 1
+                            })
+                            .unwrap_or(false)
+                            && self.state.as_ref().is_some_and(|s| {
+                                s.renderer.nearest_plaza_interactable().is_none()
+                                    && s.renderer.nearest_talk_target().is_none()
+                            })
+                            && self.forge_zone_distance().is_none()
+                            && self.cfg.slice_host.as_ref().map(|slice| {
+                                pc3d_world::survival::water_edge_distance_m(
+                                    &slice.host.borrow().gen,
+                                    &slice.player.pos,
+                                )
+                                .map(|d| d > pc3d_world::survival::CAST_REACH_M)
+                                .unwrap_or(true)
+                            }).unwrap_or(false);
+                        if fire_placed {
+                            let fake = UiAction::CampfireInteract;
+                            self.exec_actions(std::slice::from_ref(&fake), event_loop);
                         }
                     }
                 }
@@ -2744,8 +2831,90 @@ impl App {
                     if let Some(s) = self.state.as_mut() {
                         let _ = s;
                     }
+                    // N11: E is also the fire verb — but only when no
+                    // stronger E zone claims the frame (plaza props,
+                    // forge, water, NPC all outrank placing a fire).
+                    let strong_zone = self.state.as_ref().map(|s| {
+                        s.renderer.nearest_plaza_interactable().is_some()
+                            || s.renderer.nearest_talk_target().is_some()
+                    }).unwrap_or(false)
+                        || self.forge_zone_distance().is_some()
+                        || self.cfg.slice_host.as_ref().map(|slice| {
+                            pc3d_world::survival::water_edge_distance_m(
+                                &slice.host.borrow().gen,
+                                &slice.player.pos,
+                            )
+                            .is_some_and(|d| d <= pc3d_world::survival::CAST_REACH_M)
+                        }).unwrap_or(false);
+                    if !strong_zone {
+                        let fire_pending = self.cfg.slice_host.as_ref()
+                            .map(|slice| slice.campfire.is_none()).unwrap_or(false);
+                        if fire_pending {
+                            let fake = UiAction::CampfireInteract;
+                            self.exec_actions(std::slice::from_ref(&fake), event_loop);
+                            return;
+                        }
+                    }
                     let fake = UiAction::TryTalk;
                     self.exec_actions(std::slice::from_ref(&fake), event_loop);
+                }
+                UiAction::CampfireInteract => {
+                    // N11 THE FIRE VERB: no fire placed yet and wood in
+                    // the pack -> place the campfire at the crosshair's
+                    // ground target (open, walkable ground in reach).
+                    let placed = self.cfg.slice_host.as_mut().map(|slice| {
+                        if slice.campfire.is_some() {
+                            return false; // one fire per camp (the hearth is home)
+                        }
+                        if slice.inventory.count(pc3d_world::items::ItemId(1)) < 1 {
+                            return false;
+                        }
+                        let gen = slice.scene.gen.clone();
+                        let Some((_, air)) = slice.player.ray_target(&gen, 6.0) else {
+                            return false;
+                        };
+                        // The fire stands ON the target cell's surface
+                        // (the same authoritative soil everything stands
+                        // on — never floating, never buried).
+                        let gy = self
+                            .state
+                            .as_ref()
+                            .and_then(|s| {
+                                Some(s.renderer.ground_y_at(&gen, air.x as f32 + 0.5, air.z as f32 + 0.5))
+                            })
+                            .unwrap_or_else(|| {
+                                pc3d_world::grounding::ground_at(
+                                    &gen,
+                                    air.x as i64 * 1000,
+                                    air.z as i64 * 1000,
+                                    pc3d_world::grounding::GroundQuery::Point,
+                                )
+                                .surface_m()
+                            });
+                        slice.campfire = Some(Default::default());
+                        // THE PLACEMENT IS THE FIRST FEED: the placed
+                        // log burns (the "CAMPFIRE LIT" toast is true
+                        // the moment it shows — the campfire law keeps
+                        // the place and feed verbs at one exchange
+                        // rate).
+                        slice.campfire.as_mut().unwrap().add_wood();
+                        slice.campfire_xz = [air.x as f32 + 0.5, air.z as f32 + 0.5];
+                        slice.inventory.remove(pc3d_world::items::ItemId(1), 1);
+                        true
+                    }).unwrap_or(false);
+                    if let Some(s) = self.state.as_mut() {
+                        s.ui.toast(if placed { "CAMPFIRE LIT" } else { "NEED WOOD - CHOP A TREE" });
+                        if placed {
+                            if let Some(slice) = self.cfg.slice_host.as_ref() {
+                                let stock = Self::sync_stock_lines_of(slice);
+                                s.ui.stock_lines = stock;
+                            }
+                        }
+                        s.ui_dirty = true;
+                    }
+                    if placed {
+                        self.sfx(pc3d_audio::SoundId::ForgeWhoosh);
+                    }
                 }
                 UiAction::ForgeLoadFuel => {
                     let ok = self
@@ -3072,6 +3241,7 @@ impl App {
             slice.career.chosen.as_ref(),
             &slice.tool_wear,
             Some(&slice.host.borrow().fish_stocks),
+            slice.campfire.as_ref().map(|c| (c, slice.campfire_xz)),
         );
         state.ui.toast(match r {
             Ok(()) => format!("SAVED '{}'", slice.world_name),
@@ -3088,7 +3258,7 @@ impl App {
             .or_else(|| self.cfg.slice_host.as_ref().map(|s| s.save_root.clone()));
         let Some(root) = root else { return };
         match crate::slice::load_slice(root.as_ref(), name) {
-            Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear, fish)) => {
+            Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear, fish, campfire)) => {
                 // Re-assemble the scene for the SAVED seed, exactly as
                 // `create_world` does. Swapping only the seed, host and
                 // player left `slice.scene` showing the world that happened
@@ -3116,6 +3286,13 @@ impl App {
                     chosen: career,
                 };
                 fresh.tool_wear = tool_wear;
+                // N11: the fire returns exactly where it burned (state +
+                // position); warmth restarts full (the body rested).
+                if let Some((c, xz)) = campfire {
+                    fresh.campfire = Some(c);
+                    fresh.campfire_xz = xz;
+                }
+                fresh.warmth = 1.0;
                 if let Some(f) = fish {
                     fresh.host.borrow_mut().fish_stocks = f;
                 } // None = pre-N08 save keeps the seeded stocks
@@ -3283,6 +3460,7 @@ impl ApplicationHandler for App {
             owner_menu: self.cfg.owner_menu,
             done: false,
             built_count,
+            fire_loop_live: false,
             ui: UiState::default(),
             ui_list: None,
             ui_dirty: true,
@@ -4011,6 +4189,7 @@ impl App {
                         slice.career.chosen.as_ref(),
                         &slice.tool_wear,
                         Some(&fish),
+                        slice.campfire.as_ref().map(|c| (c, slice.campfire_xz)),
                     );
                     slice.last_message = match r {
                         Ok(()) => "SAVED".into(),
@@ -4025,7 +4204,7 @@ impl App {
                     let root = slice.save_root.clone();
                     let name = slice.world_name.clone();
                     match crate::slice::load_slice(root.as_ref(), &name) {
-                        Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear, fish)) => {
+                        Ok((seed, host, player, inventory, onboarding, forge, quests, career, tool_wear, fish, campfire)) => {
                             slice.seed = seed;
                             *slice.host.borrow_mut() = host;
                             slice.player = player;
@@ -4040,6 +4219,12 @@ impl App {
                             if let Some(f) = fish {
                                 slice.host.borrow_mut().fish_stocks = f;
                             } // None = pre-N08 save keeps the seeded stocks
+                            // N11: the fire returns where it burned.
+                            (slice.campfire, slice.campfire_xz) = match campfire {
+                                Some((c, xz)) => (Some(c), xz),
+                                None => (None, [0.0; 2]),
+                            };
+                            slice.warmth = 1.0;
                             let h = slice.host.borrow();
                             state.renderer.update_construction(&h.construction);
                             slice.last_message = "RELOADED".into();
@@ -4485,6 +4670,35 @@ impl App {
             if state.ui.screen == crate::ui::Screen::Gameplay {
                 state.renderer.set_pose(slice.player.pose());
             }
+            // N11 THE FIRE DECLARATION: the drawn fire mirrors the live
+            // authority every frame (burn state, fuel fraction, flicker
+            // phase); the base is the authoritative surface at its spot.
+            // Cold ashes draw the ring + logs only (a fire goes OUT, the
+            // stones stay).
+            {
+                let gen = slice.scene.gen.clone();
+                match slice.campfire.as_ref() {
+                    Some(fire) => {
+                        let base_y = state
+                            .renderer
+                            .ground_y_at(&gen, slice.campfire_xz[0], slice.campfire_xz[1]);
+                        let st = fire.state();
+                        let dev = state.renderer.device().clone();
+                        state.renderer.set_campfire(
+                            &dev,
+                            slice.campfire_xz,
+                            base_y,
+                            st == pc3d_world::campfire::CampfireState::Burning,
+                            st == pc3d_world::campfire::CampfireState::Embers,
+                            (fire.fuel_milli as f32
+                                / pc3d_world::campfire::FUEL_PER_WOOD as f32)
+                                .clamp(0.0, 1.0),
+                            state.frame_no as f32 / 60.0,
+                        );
+                    }
+                    None => state.renderer.clear_campfire(),
+                }
+            }
             // A full day every ten minutes of live play — slow enough to
             // feel, fast enough that a session sees dusk.
             {
@@ -4495,6 +4709,72 @@ impl App {
                 let crossed_dusk = (phase_before % 1.0) < 0.5 && (phase % 1.0) >= 0.5;
                 if crossed_dusk {
                     slice.onboarding.mark("first_night");
+                }
+                // N11 THE COLD LAW: the fire burns on the world's clock
+                // (the same tick the forge burns); the body's warmth
+                // answers the SAME night factor the sky draws — dark and
+                // cold arrive together. Shelter or a burning fire within
+                // reach holds the line; a drained warmth only hurts the
+                // survival HUD (the night teaches, it does not instakill).
+                // THE TICK LAW: exactly ONE burn/warmth step per WORLD
+                // TICK — the block runs per frame, but the fire's clock
+                // is the world's (a per-frame tick burns a whole log in
+                // 10 frames; the doc and the forge both say minutes).
+                let night = state.renderer.night_factor();
+                let world_tick = slice.world_tick_frame % WORLD_TICK_FRAMES == 0;
+                if world_tick {
+                    if let Some(fire) = slice.campfire.as_mut() {
+                        fire.tick();
+                    }
+                }
+                let near_fire = slice
+                    .campfire
+                    .as_ref()
+                    .map(|f| {
+                        let d = ((slice.player.pos[0] - slice.campfire_xz[0]).powi(2)
+                            + (slice.player.pos[2] - slice.campfire_xz[1]).powi(2))
+                        .sqrt();
+                        f.warms(d)
+                    })
+                    .unwrap_or(false);
+                let gen = slice.scene.gen.clone();
+                let sheltered = pc3d_world::shelter::score_at(
+                    &gen,
+                    slice.player.pos[0],
+                    slice.player.pos[2],
+                    slice.player.pos[1],
+                    None,
+                )
+                .sheltered();
+                if world_tick {
+                    slice.warmth = pc3d_world::campfire::warmth_tick(
+                        slice.warmth,
+                        night,
+                        sheltered,
+                        near_fire,
+                    );
+                }
+                // THE SHELTER LINE: the verdict names WHAT is missing —
+                // the HUD teaches the player what to build next.
+                let fire_dist = slice.campfire.as_ref().and_then(|f| {
+                    let st = f.state();
+                    (st == pc3d_world::campfire::CampfireState::Burning).then(|| {
+                        ((slice.player.pos[0] - slice.campfire_xz[0]).powi(2)
+                            + (slice.player.pos[2] - slice.campfire_xz[1]).powi(2))
+                            .sqrt()
+                    })
+                });
+                let line = pc3d_world::shelter::score_at(
+                    &gen,
+                    slice.player.pos[0],
+                    slice.player.pos[2],
+                    slice.player.pos[1],
+                    fire_dist,
+                )
+                .line();
+                if state.ui.hud.shelter_line != line {
+                    state.ui.hud.shelter_line = line;
+                    state.ui_dirty = true;
                 }
             }
             // The forge work tick (inside the slice's own scope): the
@@ -4667,6 +4947,16 @@ impl App {
                     (Some((name, _)), _, _) => format!("E TALK {name} · {tail}"),
                     (None, true, _) => format!("E USE FORGE · {tail}"),
                     (None, false, _) => {
+                        // N11 THE FIRE ZONE: within warmth reach of the
+                        // placed fire, E feeds it (prompt outranks the
+                        // base but stays under water/fish).
+                        let fire_near = slice.campfire.as_ref().map(|f| {
+                            let d = ((p[0] - slice.campfire_xz[0]).powi(2)
+                                + (p[2] - slice.campfire_xz[1]).powi(2))
+                            .sqrt();
+                            d <= pc3d_world::campfire::WARMTH_RADIUS_M
+                                && f.fuel_milli < pc3d_world::campfire::FUEL_CAP
+                        });
                         // N08: at the water E casts (the zone the water
                         // law owns); otherwise the base prompt.
                         let water = pc3d_world::survival::water_edge_distance_m(
@@ -4679,6 +4969,7 @@ impl App {
                             {
                                 format!("E FISH · {tail}")
                             }
+                            _ if fire_near == Some(true) => format!("E FEED FIRE · {tail}"),
                             _ => base,
                         }
                     }
@@ -4889,6 +5180,35 @@ impl App {
                 hud.flash = (hud.flash - 3.3 * dt).max(0.0);
                 if hud.food > 0.5 && hud.health < 1.0 {
                     hud.health = (hud.health + 0.02 * dt).min(1.0);
+                }
+                // N11 THE WARMTH SYNC: the slice's cold-law answer drives
+                // the HUD bar; the bar draws only once the night has
+                // touched it (reserved-bar law — day warmth is invisible).
+                if let Some(slice) = self.cfg.slice_host.as_ref() {
+                    let night = state.renderer.night_factor();
+                    if night > 0.05 || slice.warmth < 0.999 {
+                        hud.warmth_live = true;
+                    }
+                    hud.warmth = slice.warmth;
+                    // THE FIRE AUDIO: the crackle loop plays while the
+                    // body stands in warmth reach of a BURNING fire
+                    // (the world's own gate, not a timer).
+                    let near_burning = slice.campfire.as_ref().map(|f| {
+                        let d = ((slice.player.pos[0] - slice.campfire_xz[0]).powi(2)
+                            + (slice.player.pos[2] - slice.campfire_xz[1]).powi(2))
+                        .sqrt();
+                        f.warms(d)
+                    }).unwrap_or(false);
+                    if let Some(audio) = state.audio.as_mut() {
+                        if near_burning && !state.fire_loop_live {
+                            audio.play_loop(pc3d_audio::SoundId::FireCrackle, 0.22);
+                            state.fire_loop_live = true;
+                        } else if !near_burning && state.fire_loop_live {
+                            audio.stop_loops();
+                            audio.play_loop(pc3d_audio::SoundId::WindLoop, 0.18);
+                            state.fire_loop_live = false;
+                        }
+                    }
                 }
                 let after = (hud.stamina * 100.0) as i32 * 100
                     + (hud.food * 100.0) as i32

@@ -11548,3 +11548,58 @@ VERIFICATION: make p3d-beta ALL STAGES PASS; P3D workspace cargo test
 `Poorcraft 3D/dist3d/poorcraft3d-macos.dmg` (4.0 MB) built by the battery's
 package-dmg stage on this tree; deck-bench PASS on quiet host (contention
 guard correctly refused a contaminated first run).
+
+## 2026-11-26 — Loop 488 — N11 CLOSED: fire verb live, cold law proven by mutation
+
+WHAT: POORCRAFT 3D Card N11 (shelter/fire/first night) closed. The
+capstone `route_first_night` runs end-to-end GREEN with 5 inspected
+PNGs, and the doctrine's mutation law is satisfied: the cold gate is
+load-bearing.
+
+HOW (root causes, not symptoms):
+- crates/pc3d_render/src/app.rs: (1) TryTalk now delegates to
+  CampfireInteract when no stronger E zone (plaza prop / forge /
+  NPC / water) claims the press — the place arm previously lived ONLY
+  in OpenInteract, which no input path ever emits, so the fire verb
+  was unreachable in real play; (2) placement now feeds the first log
+  (a placed fire was born Cold under a "CAMPFIRE LIT" toast); (3)
+  place + feed paths sync the HUD stock lines (PACK was lying after
+  the verb).
+- crates/pc3d_world/src/campfire.rs: PC3D_MUTATE_COLD_OFF lever severs
+  the cold drain (established PC3D_MUTATE_* convention) + unit check
+  p3dn11_cold_gate_is_load_bearing_mutation_check (law live drains,
+  lever severed holds).
+- apps/poorcraft3d/src/main.rs: route_first_night rebuilt on
+  tick-law arithmetic — aim = stand ON the hearth column, pitch -1.5
+  (yaw 0 faces -Z; the old +1.2 m offset aimed across, never at);
+  8-dig ladder (7 distinct columns would starve the ledger: place +
+  2 feeds + 4 revival + 1 carried = 8 takes, and repeat digs on the
+  same column take Soil by the first_tool law); away latch is a
+  280-frame poll crossing warmth < 0.9 (25 night ticks at
+  DRAIN 0.004 — tick-rate-robust, 1 tick / 10 frames); midnight
+  re-pinned at the away leg (the day clock advances in real time; a
+  2 s/frame debug host drifts past dawn otherwise); the unattended
+  fire gutters during the away leg (risk law — the first run proved
+  it: embers-only save returned glow 0.18) and the return REVIVES it
+  with 4 logs before SaveNow, so the reload beat returns a LIVE fire
+  (glow 0.90); the fire witness is honest: an open hearth warms by
+  physics (warmth 1.00 at midnight) while the shelter line still
+  names NO ROOF OVERHEAD — the gate needs roof+walls even by a fire.
+- docs/CONTINUACAO-GLM/12-FILA-DE-EXECUCAO.md: N11 closure entry.
+
+VERIFICATION:
+- route_first_night OBSERVE PASS (5 captures, 680 frames, p50
+  2.03 s): shots/first-night-run2/route_first_night/ — ladder paid
+  (wood x8 after digs), lit toast + glow, fed glow 0.90, midnight
+  1000, warmth HELD 1.00 at the hearth, plain drained to 0.90 at
+  night 1000, fire RETURNED glow 0.90, line synced, pixel law delta
+  0.3843. All 5 PNGs human-inspected (day lit fire with honest HUD,
+  fed pool, midnight blaze, cold dark plain with lower warmth bar,
+  revived fire after reload).
+- MUTATION: PC3D_MUTATE_COLD_OFF=1 -> FAIL exactly at
+  warmth_drained_away (0.00 at night 0), every other gate green;
+  control PASS. Artifact: shots/first-night-mutant/route_first_night/.
+- make p3d-doctrine-check 2/0. Workspace cargo test --release 835/0
+  (render lib 281; world 341 incl. 12 p3dn11). PC3D render unit suite
+  re-run after the E-verb change: 281/0 — the delegation broke
+  nothing.

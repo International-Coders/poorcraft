@@ -1,0 +1,31 @@
+{
+  "asset_dumps": [],
+  "build_hash": "dev",
+  "bundle_id": "route_first_night-dev",
+  "commands": [
+    "--observe route_first_night"
+  ],
+  "diff_paths": [],
+  "digest": "dad18633b31334b7",
+  "gpu_marker_path": "",
+  "overlays": [],
+  "perf_path": "perf.json",
+  "quality": "mid",
+  "route_id": "route_first_night",
+  "runtime_state_path": "runtime_state.json",
+  "scene": "showcase_seed_rebuild",
+  "screenshots": [
+    "night_fire_lit.png",
+    "night_fire_fed.png",
+    "night_hearth_midnight.png",
+    "night_cold_away.png",
+    "night_after_reload.png"
+  ],
+  "seed": "123",
+  "verdict_path": "verdict.json",
+  "viewport": [
+    800,
+    500
+  ],
+  "wireframes": []
+}

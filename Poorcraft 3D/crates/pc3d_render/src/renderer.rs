@@ -55,20 +55,24 @@ struct ViewmodelGpu {
     idx_count: u32,
 }
 
-/// The atmosphere uniform (NWR-006), shared by mesh/cutout/water —
-/// 160 bytes, 16-aligned, mirroring `struct Env` in scene.wgsl.
+/// The atmosphere uniform (NWR-006 + N11 fire light), shared by
+/// mesh/cutout/water — 144 bytes, 16-aligned, mirroring `struct Env`.
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct EnvGpu {
-    light_view_proj: [f32; 16],
-    fog_color: [f32; 4],
-    /// x fog density, y shadow on, z shadow texel (m), w detail strength
-    params1: [f32; 4],
-    /// x glint on, y shadow bias, z detail scale, w shadow res
-    params2: [f32; 4],
+    light_view_proj: [f32; 16], // 64
+    fog_color: [f32; 4],        // 16
+    params1: [f32; 4],          // 16
+    params2: [f32; 4],          // 16
     /// x = the SCREEN HEIGHT MAP debug flag (world-height ramp output).
-    params3: [f32; 4],
+    /// y unused, z = night, w = N11 fire glow strength (0 = off).
+    params3: [f32; 4], // 16
+    /// N11 THE FIRE LIGHT: xyz = burning campfire world spot, w = radius
+    /// (0 = no fire). One fire per camp — the hearth is home.
+    fire_pos: [f32; 4], // 16 -> 144 total
 }
+
+const _ENV_LAYOUT_LAW: () = assert!(std::mem::size_of::<EnvGpu>() == 144);
 
 /// The instanced wilderness pipelines (NWR-007) — one draw per
 /// (kind, LOD) bucket, plus the grass cutout cards.
@@ -862,6 +866,21 @@ pub struct Renderer {
     /// animation state. None = no tool equipped (the unequip law: nothing
     /// persists on screen).
     viewmodel: Option<VmState>,
+    /// N11 THE CAMPFIRE: its world spot + burn state + the crowd-GPU
+    /// pool for its boxes (stones/logs/flames share the NPC pipeline).
+    /// None = no fire placed.
+    campfire: Option<CampfireGpu>,
+}
+
+/// One placed campfire's GPU state.
+struct CampfireGpu {
+    xz: [f32; 2],
+    base_y: f32,
+    /// Burn state mirror (the app re-declares each frame — cheap).
+    burning: bool,
+    embers: bool,
+    fuel_frac: f32,
+    crowd: CrowdGpu,
 }
 
 /// One equipped viewmodel: the spec plus the animation state (equip
@@ -1115,6 +1134,7 @@ impl Renderer {
             crowd_nav: None,
             crowd_pose_hz: 60.0,
             viewmodel: None,
+            campfire: None,
             height_debug: false,
             construction: None,
             terrain: None,
@@ -1226,6 +1246,7 @@ impl Renderer {
             crowd_nav: None,
             crowd_pose_hz: 60.0,
             viewmodel: None,
+            campfire: None,
             height_debug: false,
             construction: None,
             terrain: None,
@@ -1389,6 +1410,19 @@ impl Renderer {
 
     pub fn day_phase(&self) -> f32 {
         self.day_phase.unwrap_or(0.12)
+    }
+
+    /// N11: the night factor (0 = full day, 1 = night) — the SAME
+    /// answer the sky shader dims with, so the cold law sides with the
+    /// picture the player sees.
+    pub fn night_factor(&self) -> f32 {
+        crate::scene::sun_at_phase(self.day_phase()).1
+    }
+
+    /// N11: the GPU device handle (the app declares per-frame instance
+    /// data — the campfire boxes — through the renderer's own pool).
+    pub fn device(&self) -> &wgpu::Device {
+        &self.ctx.device
     }
 
     pub fn sun_dir(&self) -> [f32; 3] {
@@ -1891,6 +1925,54 @@ impl Renderer {
             .as_ref()
             .map(|c| (c.draws, c.instances))
             .unwrap_or((0, 0))
+    }
+
+    /// N11: declares the campfire's world spot + burn state for this
+    /// frame (cheap — the app re-declares from the live authority every
+    /// frame; the upload only rewrites when the fire exists). `base_y`
+    /// is the authoritative surface the fire STANDS on.
+    pub fn set_campfire(
+        &mut self,
+        device: &wgpu::Device,
+        xz: [f32; 2],
+        base_y: f32,
+        burning: bool,
+        embers: bool,
+        fuel_frac: f32,
+        t: f32,
+    ) {
+        let cf = self.campfire.get_or_insert_with(|| CampfireGpu {
+            xz,
+            base_y,
+            burning,
+            embers,
+            fuel_frac,
+            crowd: CrowdGpu::new(device),
+        });
+        cf.xz = xz;
+        cf.base_y = base_y;
+        cf.burning = burning;
+        cf.embers = embers;
+        cf.fuel_frac = fuel_frac;
+        let rows = crate::campfire_visual::campfire_instances(xz, base_y, burning, embers, fuel_frac, t);
+        cf.crowd.upload(device, &self.ctx.queue, &rows);
+    }
+
+    /// N11: clears the campfire (no fire placed / route teardown).
+    pub fn clear_campfire(&mut self) {
+        self.campfire = None;
+    }
+
+    /// N11: the campfire's warm light term for the mesh shader — the
+    /// distance falloff to the nearest burning fire, packed as
+    /// [x, z, radius, glow] (glow 0 = no fire burning).
+    pub fn campfire_light(&self) -> [f32; 4] {
+        match self.campfire.as_ref() {
+            Some(cf) if cf.burning => {
+                [cf.xz[0], cf.xz[1], crate::campfire_visual::FLAME_HEIGHT_M * 6.0, 0.9 * cf.fuel_frac.clamp(0.2, 1.0)]
+            }
+            _ => [0.0; 4],
+        }
     }
 
     /// One crowd frame: pose from the authoritative intent at time t
@@ -2883,8 +2965,14 @@ impl Renderer {
                 if self.height_debug { 1.0 } else { 0.0 },
                 if self.scene_debug != SceneDebugMode::Normal { 1.0 } else { 0.0 },
                 night,
-                0.0,
+                // N11 THE FIRE GLOW: strength (the shader weighs the
+                // warm term by it; 0 keeps the old look byte-identical).
+                self.campfire_light()[3],
             ],
+            fire_pos: {
+                let l = self.campfire_light();
+                [l[0], l[1], l[2], if l[3] > 0.0 { l[2] } else { 0.0 }]
+            },
         };
         self.ctx
             .queue
@@ -3381,6 +3469,12 @@ impl Renderer {
         // 2b4d. The NPC crowd (NWR-009): rigged boxes per part color.
         if let Some(crowd) = self.crowd.as_mut() {
             crowd.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
+            self.draw_calls += 1;
+        }
+        // 2b4e. THE CAMPFIRE (N11): stone ring + logs + flames through
+        // the same box pipeline (one more bucket draw, Deck-cheap).
+        if let Some(cf) = self.campfire.as_mut() {
+            cf.crowd.draw(&mut pass, &self.pipelines.flora, &self.bg_globals);
             self.draw_calls += 1;
         }
         // 2b4c. The settlement kit (NWR-008): instanced modules + the

@@ -292,6 +292,9 @@ pub fn assemble(
         falling: false,
         hang: None,
         released_from: None,
+        campfire: None,
+        campfire_xz: [0.0; 2],
+        warmth: 1.0,
         inventory: pc3d_world::items::Inventory::new(12),
         tool_wear: pc3d_world::items::ToolWear::default(),
         ore_remaining: 6,
@@ -318,6 +321,7 @@ pub fn save_slice(
     career: Option<&pc3d_world::career::Career>,
     tool_wear: &pc3d_world::items::ToolWear,
     fish_stocks: Option<&pc3d_world::hydro::FishStocks>,
+    campfire: Option<(&pc3d_world::campfire::Campfire, [f32; 2])>,
 ) -> Result<(), pc3d_save::store::LoadError> {
     let sup = pc3d_core::SupportedVersions::epoch1();
     pc3d_save::store::save_world_meta(
@@ -357,6 +361,7 @@ pub fn save_slice(
             career: career.map(|c| c.code()),
             tool_wear: tool_wear.clone(),
             fish_stocks: fish_stocks.cloned(),
+            campfire: campfire.map(|(c, xz)| (c.clone(), xz)),
         },
         &sup,
     )?;
@@ -382,6 +387,7 @@ pub fn load_slice(
         Option<pc3d_world::career::Career>,
         pc3d_world::items::ToolWear,
         Option<pc3d_world::hydro::FishStocks>,
+        Option<(pc3d_world::campfire::Campfire, [f32; 2])>,
     ),
     pc3d_save::store::LoadError,
 > {
@@ -438,6 +444,7 @@ pub fn load_slice(
         extras.career.and_then(pc3d_world::career::Career::from_code),
         extras.tool_wear,
         extras.fish_stocks,
+        extras.campfire,
     ))
 }
 
@@ -685,9 +692,10 @@ mod tests {
             None, // career
             &pc3d_world::items::ToolWear::default(),
             None, // fish stocks
+            None, // campfire (N11)
         )
         .expect("save");
-        let (seed2, host2, p2, _, _, _, _, _, _, _) =
+        let (seed2, host2, p2, _, _, _, _, _, _, _, _) =
             load_slice(root.path(), "slice").expect("load");
         assert_eq!(seed, seed2);
         assert_eq!(p2.pos, save_player.pos);
@@ -829,12 +837,13 @@ mod tests {
             Some(&pc3d_world::career::Career::Mysteries), // the trailer round-trips
             &wear,
             Some(&fish), // the stocks trailer round-trips
+            None,        // campfire (N11)
         )
         .expect("save");
 
         // A fresh load returns the same seed, the same built cells, the
         // same player state + pack + forge + quests + tool wear.
-        let (seed2, host2, p2, inv2, on2, forge2, quests2, career2, wear2, fish2) =
+        let (seed2, host2, p2, inv2, on2, forge2, quests2, career2, wear2, fish2, fire2) =
             load_slice(root.path(), "slice").expect("load");
         assert_eq!(fish2, Some(fish), "the fish stocks trailer round-trips");
         assert_eq!(wear2, wear, "the wear trailer round-trips");
@@ -1087,6 +1096,9 @@ pub fn assemble_rebuild(
         falling: false,
         hang: None,
         released_from: None,
+        campfire: None,
+        campfire_xz: [0.0; 2],
+        warmth: 1.0,
         inventory: pc3d_world::items::Inventory::new(12),
         tool_wear: pc3d_world::items::ToolWear::default(),
         ore_remaining: 6,

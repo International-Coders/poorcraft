@@ -32,6 +32,7 @@ pub mod gpu;
 pub mod inspect;
 pub mod inventory;
 pub mod machines;
+pub mod campfire_visual;
 pub mod npcs;
 pub mod observe;
 pub mod player;

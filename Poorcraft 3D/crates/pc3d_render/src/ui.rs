@@ -210,6 +210,17 @@ pub struct HudValues {
     /// BETA-0.4 A1: the DAMAGE FLASH — 1.0 right after a health drop,
     /// decaying to 0 in ~0.3 s. The HUD paints a red vignette by it.
     pub flash: f32,
+    /// N11: the body's warmth in [0,1] — the cold law drains it at
+    /// night; shelter or a burning fire holds the line. Drawn as a
+    /// warm-colored bar only once the night has touched it (the
+    /// reserved-bar law: a bar draws only when its state exists).
+    pub warmth: f32,
+    pub warmth_live: bool,
+    /// N11: the shelter verdict line ("NO ROOF OVERHEAD", "WALLS TOO
+    /// THIN", "SEALED - MAKE A DOORWAY", "FIRE TOO FAR", "SHELTERED")
+    /// — the verdict names WHAT is missing, the law teaches by doing.
+    /// Empty = not synced yet (the painter draws nothing).
+    pub shelter_line: String,
 }
 
 impl HudValues {
@@ -254,6 +265,9 @@ impl Default for HudValues {
             stock: String::new(),
             objective: String::new(),
             flash: 0.0,
+            warmth: 1.0,
+            warmth_live: false,
+            shelter_line: String::new(),
         }
     }
 }
@@ -689,6 +703,9 @@ impl UiState {
                 "selected_slot": self.hud.selected,
                 "prompt": self.hud.prompt,
                 "stock": self.hud.stock,
+                "warmth": self.hud.warmth,
+                "warmth_live": self.hud.warmth_live,
+                "shelter_line": self.hud.shelter_line,
             },
             "toasts": self.toasts.iter().map(|t| serde_json::json!({
                 "text": t.text, "age_s": t.age_s })).collect::<Vec<_>>(),
@@ -1419,6 +1436,34 @@ pub fn build_dpi(state: &UiState, w: u32, h: u32, dpi: f32) -> DrawList {
                     r,
                 );
                 y += ctx.px(BAR_H) + ctx.px(BAR_GAP);
+            }
+            // N11 THE WARMTH BAR (reserved): draws once the night has
+            // touched the body — ember color, full=comfortable.
+            if state.hud.warmth_live {
+                let r = Rect::new(bx, y, ctx.px(BAR_W) as u32, ctx.px(BAR_H) as u32);
+                ctx.push(
+                    "bar_warmth",
+                    ElementKind::Bar {
+                        frac: state.hud.warmth,
+                        color: [222, 120, 51],
+                        label: "WARMTH".into(),
+                    },
+                    r,
+                );
+                y += ctx.px(BAR_H) + ctx.px(BAR_GAP);
+            }
+            // N11 THE SHELTER LINE: the verdict names WHAT is missing —
+            // the HUD teaches what to build next. Draws once synced
+            // (gameplay live); "SHELTERED" greens the line.
+            if !state.hud.shelter_line.is_empty() {
+                ctx.text(
+                    "hud_shelter",
+                    &state.hud.shelter_line,
+                    bx,
+                    y + ctx.px(2),
+                    2,
+                );
+                y += ctx.px(ROW_H);
             }
             // A1 THE DAMAGE FLASH: a red wash proportional to the flash
             // decay — the world stings when you're hit.
@@ -2627,6 +2672,10 @@ pub enum UiAction {
     MeleeAttack,
     /// N: recruit a companion at the player's side, or cycle Follow/Wait.
     CompanionCommand,
+    /// N11 THE FIRE VERB (E at the crosshair on open ground with wood in
+    /// the pack): place the campfire at the target cell — or, standing
+    /// within reach of a placed fire, feed it one wood from the pack.
+    CampfireInteract,
     Repaint,
 }
 

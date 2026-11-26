@@ -26,11 +26,28 @@ pub struct SessionExtras {
     /// pre-N08 saves decode to FULL stocks (a living river, not an
     /// empty one: fish are not player-made).
     pub fish_stocks: Option<pc3d_world::hydro::FishStocks>,
+    /// N11: the campfire (fuel/embers/lifetime) + its world position.
+    /// Trailing blob after the fish blob — pre-N11 saves decode to None
+    /// (no fire lit yet).
+    pub campfire: Option<(pc3d_world::campfire::Campfire, [f32; 2])>,
 }
 
 impl SessionExtras {
     fn encode(&self) -> Vec<u8> {
+        // The N11 campfire rides FIRST (marker 0xF0 none / 0xF1 some) —
+        // a byte no older field ever writes (forge is 0/1, quest counts
+        // are u16 LE), so pre-N11 saves' forge byte can never read as a
+        // campfire and the fish blob can never swallow one.
         let mut b = vec![MAGIC];
+        match &self.campfire {
+            Some((c, pos)) => {
+                b.push(0xF1);
+                b.extend_from_slice(&c.encode());
+                b.extend_from_slice(&pos[0].to_le_bytes());
+                b.extend_from_slice(&pos[1].to_le_bytes());
+            }
+            None => b.push(0xF0),
+        }
         match &self.forge {
             Some(f) => {
                 b.push(1);
@@ -63,6 +80,36 @@ impl SessionExtras {
             )));
         }
         let mut off = 1;
+        // The N11 campfire header rides FIRST (0xF0 none / 0xF1 some) —
+        // a byte range nothing older writes. A pre-N11 save's forge byte
+        // (0/1) fails both markers and the campfire decodes to None
+        // WITHOUT consuming the byte (the forge branch below reads it).
+        let campfire = if off < bytes.len() && bytes[off] == 0xF1 {
+            off += 1;
+            if off + 24 + 8 > bytes.len() {
+                return Err(LoadError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "campfire truncated",
+                )));
+            }
+            let c = pc3d_world::campfire::Campfire::decode(&bytes[off..off + 24])
+                .ok_or_else(|| {
+                    LoadError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "campfire decode",
+                    ))
+                })?;
+            off += 24;
+            let x = f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap());
+            let z = f32::from_le_bytes(bytes[off + 4..off + 8].try_into().unwrap());
+            off += 8;
+            Some((c, [x, z]))
+        } else {
+            if off < bytes.len() && bytes[off] == 0xF0 {
+                off += 1; // N11 save with no fire yet: consume the marker
+            }
+            None
+        };
         if off >= bytes.len() {
             return Err(LoadError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -150,7 +197,7 @@ impl SessionExtras {
         // saves = None (the caller seeds FULL stocks — a living river).
         let fish_stocks =
             pc3d_world::hydro::FishStocks::decode(&bytes[off.min(bytes.len())..]);
-        Ok(SessionExtras { forge, quests, career, tool_wear, fish_stocks })
+        Ok(SessionExtras { forge, quests, career, tool_wear, fish_stocks, campfire })
     }
 }
 
@@ -220,6 +267,7 @@ mod tests {
             career: Some(2),
             tool_wear: wear.clone(),
             fish_stocks: Some(stocks.clone()),
+            campfire: None,
         };
         save_session(root.path(), "w", &extras, &sup).expect("save");
         let back = load_session(root.path(), "w", &sup).expect("load");
@@ -241,6 +289,49 @@ mod tests {
             Some(stocks),
             "the fish trailer round-trips"
         );
+    }
+
+    /// N11: the campfire trailer round-trips (state + position), and a
+    /// pre-N11 save (no trailer) loads with None — no fire lit yet.
+    #[test]
+    fn p3dn11_campfire_trailer_round_trips() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let sup = SupportedVersions::epoch1();
+        let mut fire = pc3d_world::campfire::Campfire::default();
+        assert!(fire.add_wood());
+        fire.tick();
+        let extras = SessionExtras {
+            forge: None,
+            quests: vec![],
+            career: None,
+            tool_wear: Default::default(),
+            fish_stocks: None,
+            campfire: Some((fire.clone(), [140.5, 96.25])),
+        };
+        save_session(tmp.path(), "w", &extras, &sup).expect("save");
+        let back = load_session(tmp.path(), "w", &sup).expect("load");
+        assert_eq!(
+            back.campfire,
+            Some((fire, [140.5, 96.25])),
+            "campfire state + position round-trip"
+        );
+    }
+
+    #[test]
+    fn p3dn11_old_save_without_campfire_loads_none() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let sup = SupportedVersions::epoch1();
+        // A pre-N11 payload: MAGIC + forge byte 0 + 0 quests + career 0
+        // + fresh wear + no fish + no campfire byte.
+        let old = vec![1u8, 0, 0, 0, 0];
+        let old = crate::framing::frame(&FormatHeader::current(), &old);
+        crate::store::write_atomic(
+            &crate::paths::world_root(tmp.path(), "w").join("session.bin"),
+            &old,
+        )
+        .expect("write");
+        let back = load_session(tmp.path(), "w", &sup).expect("load");
+        assert!(back.campfire.is_none(), "absence = no fire, never an error");
     }
 
     /// N08: a pre-N08 save (no fish trailer) loads with None — the

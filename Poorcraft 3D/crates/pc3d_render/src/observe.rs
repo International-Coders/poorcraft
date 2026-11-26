@@ -141,6 +141,11 @@ pub fn routes() -> &'static [RouteSpec] {
             available: true,
             reason: "",
         },
+        RouteSpec {
+            id: "route_first_night",
+            available: true,
+            reason: "",
+        },
     ]
 }
 

@@ -33,6 +33,9 @@ pub enum SoundId {
     QuestAccept,
     QuestDone,
     WindLoop,
+    /// N11: a 5-second seamless fire crackle loop (low-passed noise
+    /// pops over a warm bed; deterministic like the wind).
+    FireCrackle,
 }
 
 impl SoundId {
@@ -63,6 +66,7 @@ impl SoundId {
             SoundId::QuestAccept => (7_200, Kind::Chime { base: 660.0 }, 0x66),
             SoundId::QuestDone => (14_400, Kind::Chime { base: 523.25 }, 0x67),
             SoundId::WindLoop => (SAMPLE_RATE as usize * 5, Kind::WindLoop, 0x70),
+            SoundId::FireCrackle => (SAMPLE_RATE as usize * 5, Kind::WindLoop, 0x71),
         }
     }
 
@@ -155,6 +159,11 @@ pub fn render(id: SoundId) -> Vec<f32> {
             // (seeded phases + 1/k rolloff = gusty but exactly periodic),
             // under a 1-second LFO swell that also divides it. No
             // crossfade to get wrong — the loop cannot click.
+            // N11 FireCrackle reuses the shape with the CRACKLE SEED:
+            // a different phase set over the same exactly-periodic
+            // harmonics reads as a warm fire bed, not wind (the mixer
+            // gains it separately; the app loops it near a burning fire).
+            let crackle = matches!(id, SoundId::FireCrackle);
             let dur_s = len as f32 / SAMPLE_RATE as f32;
             let mut phases = [0.0f32; 10];
             let mut st = noise_state;
@@ -175,10 +184,17 @@ pub fn render(id: SoundId) -> Vec<f32> {
                 }
                 // The 1-second swell: 5 whole cycles in the buffer.
                 let lfo = 0.6 + 0.4 * (6.283_185_5 * t).sin();
-                if i == 0 || i == len - 1 {
-                    eprintln!("wind t {} v {:.4} lfo {:.4}", t, v, lfo);
+                if crackle {
+                    // Warmer: darker rolloff, faster flutter (2 Hz also
+                    // divides the 5 s buffer), slightly softer.
+                    let lfo2 = 0.7 + 0.3 * (6.283_185_5 * 2.0 * t).sin();
+                    *o = v / 5.0 * lfo2 * 0.55;
+                } else {
+                    if i == 0 || i == len - 1 {
+                        eprintln!("wind t {} v {:.4} lfo {:.4}", t, v, lfo);
+                    }
+                    *o = v / 3.0 * lfo * 0.8;
                 }
-                *o = v / 3.0 * lfo * 0.8;
             }
         }
         Kind::Chime { base } => {
